@@ -46,6 +46,8 @@ COLUMN_MAP = {
     "stock_price": "stock_price",
     "raw_identifier": "raw_identifier",
     "iv": "iv",
+    "is_abnormal": "is_abnormal",
+    "abnormal_reason": "abnormal_reason",
 }
 
 
@@ -79,6 +81,8 @@ class OptionFlow(Base):
     d5_return = Column(Numeric(8, 4))
     d10_return = Column(Numeric(8, 4))
     d30_return = Column(Numeric(8, 4))
+    is_abnormal = Column(Boolean, default=False)
+    abnormal_reason = Column(String(64))
 
 
 def _get_engine():

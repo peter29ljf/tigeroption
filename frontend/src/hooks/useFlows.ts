@@ -242,3 +242,7 @@ export function useSignalStats(
   const path = `/api/v1/backtest/stats?${params.toString()}`;
   return useApi<SignalStats>(path);
 }
+
+export function useAbnormalFlows(limit = 100) {
+  return useApi<Flow[]>(`/api/v1/abnormal?limit=${limit}`);
+}

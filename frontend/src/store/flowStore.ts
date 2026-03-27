@@ -18,6 +18,8 @@ export interface Flow {
   oi?: number;
   open_interest?: number;
   iv?: number;
+  is_abnormal?: boolean;
+  abnormal_reason?: string;
 }
 
 export interface FlowFilters {

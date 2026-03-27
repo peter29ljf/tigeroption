@@ -10,6 +10,8 @@ const NAV_ITEMS = [
   { href: "/flows", label: "实时流", icon: "📈" },
   { href: "/analysis/SPY", label: "个股分析", icon: "🔍" },
   { href: "/alerts", label: "告警规则", icon: "🔔" },
+  { href: "/abnormal", label: "异常大单", icon: "⚡" },
+  { href: "/mcp", label: "MCP 工具", icon: "🔌" },
 ];
 
 export function Sidebar() {

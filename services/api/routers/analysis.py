@@ -382,6 +382,17 @@ _AI_SYSTEM = (
 )
 
 
+def _itm_otm_label(stock_px: float | None, strike: float, put_call: str) -> str:
+    if not stock_px:
+        return "N/A"
+    pct = abs(stock_px - strike) / stock_px * 100
+    is_call = put_call.upper() in ("CALL", "C")
+    if is_call:
+        return f"价内ITM-{pct:.1f}%" if stock_px > strike else f"价外OTM+{pct:.1f}%"
+    else:
+        return f"价内ITM-{pct:.1f}%" if stock_px < strike else f"价外OTM+{pct:.1f}%"
+
+
 def _build_insight_prompt(
     symbol: str,
     price: float | None,
@@ -407,14 +418,23 @@ def _build_insight_prompt(
 
     flows_lines = []
     for f in top_flows[:5]:
-        strike = f.strike
+        strike = float(f.strike)
         pc = f.put_call
         direction = f.direction or "N/A"
         premium_usd = f.premium / 100
         score = f.score or 0
-        ai_note = (f.ai_note or "—")[:40]
+        side = f.side or "N/A"
+        trade_px = float(f.stock_price) if f.stock_price else None
+        trade_px_str = f"${trade_px:.2f}" if trade_px else "N/A"
+        curr_px_str = f"${price:.2f}" if price else "N/A"
+        moneyness_at_trade = _itm_otm_label(trade_px, strike, pc)
+        moneyness_now = _itm_otm_label(price, strike, pc)
+        iv_str = f"{float(f.iv):.1f}%" if f.iv else "N/A"
+        vol_oi_str = f"{f.volume / f.oi:.1f}x" if f.oi and f.oi > 0 else "N/A"
         flows_lines.append(
-            f"  {symbol} {strike}{pc} | {direction} | ${premium_usd:,.0f} | 评分{score} | {ai_note}"
+            f"  {symbol} {strike:.0f}{pc} | {side} | {direction} | "
+            f"成交时股价{trade_px_str}({moneyness_at_trade}) | 当前{curr_px_str}({moneyness_now}) | "
+            f"IV:{iv_str} | Vol/OI:{vol_oi_str} | 溢价${premium_usd:,.0f} | 评分{score}"
         )
 
     top_oi_str = " / ".join(
@@ -578,7 +598,7 @@ async def ai_insight(
         ai_client = anthropic.AsyncAnthropic(api_key=api_key)
         message = await ai_client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=2048,
+            max_tokens=4096,
             system=_AI_SYSTEM,
             messages=[{"role": "user", "content": prompt}],
         )

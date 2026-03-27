@@ -35,6 +35,8 @@ class FlowOut(BaseModel):
     d5_return: Optional[float] = None
     d10_return: Optional[float] = None
     d30_return: Optional[float] = None
+    is_abnormal: bool = False
+    abnormal_reason: Optional[str] = None
 
     @computed_field
     @property

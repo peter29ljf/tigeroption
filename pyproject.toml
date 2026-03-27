@@ -18,6 +18,7 @@ dependencies = [
     "anthropic>=0.45",
     "tigeropen>=3.1",
     "python-multipart>=0.0.18",
+    "mcp>=1.0",
 ]
 
 [project.optional-dependencies]

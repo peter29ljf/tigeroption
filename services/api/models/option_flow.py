@@ -42,3 +42,5 @@ class OptionFlow(Base):
     d5_return = Column(Numeric(8, 4), nullable=True)
     d10_return = Column(Numeric(8, 4), nullable=True)
     d30_return = Column(Numeric(8, 4), nullable=True)
+    is_abnormal = Column(Boolean, nullable=False, default=False)
+    abnormal_reason = Column(String(64), nullable=True)

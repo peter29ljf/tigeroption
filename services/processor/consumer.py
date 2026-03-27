@@ -19,6 +19,32 @@ from services.processor.sweep_detector import detect_sweep
 logger = logging.getLogger(__name__)
 
 STREAM_RAW = "raw_flows"
+
+# Thresholds for tagging a flow as "abnormal"
+_ABNORMAL_SCORE = 75
+_ABNORMAL_SWEEP_PREMIUM = 20_000_000   # $200k in cents
+_ABNORMAL_DARK_POOL_PREMIUM = 50_000_000  # $500k in cents
+
+
+def _tag_abnormal(flow: dict) -> None:
+    """Set is_abnormal + abnormal_reason on flow in-place."""
+    score = int(flow.get("score", 0) or 0)
+    premium = int(flow.get("premium", 0) or 0)
+    is_sweep = bool(flow.get("is_sweep", False))
+    is_dark_pool = bool(flow.get("is_dark_pool", False))
+
+    if score >= _ABNORMAL_SCORE:
+        flow["is_abnormal"] = True
+        flow["abnormal_reason"] = f"score≥{_ABNORMAL_SCORE}"
+    elif is_sweep and premium >= _ABNORMAL_SWEEP_PREMIUM:
+        flow["is_abnormal"] = True
+        flow["abnormal_reason"] = "大额扫单"
+    elif is_dark_pool and premium >= _ABNORMAL_DARK_POOL_PREMIUM:
+        flow["is_abnormal"] = True
+        flow["abnormal_reason"] = "暗池大单"
+    else:
+        flow["is_abnormal"] = False
+        flow["abnormal_reason"] = None
 STREAM_SCORED = "scored_flows"
 GROUP_NAME = "processor_group"
 BLOCK_MS = 5000
@@ -126,6 +152,9 @@ class FlowConsumer:
             if flow["score"] >= AI_SCORE_THRESHOLD:
                 ai_note = await interpret(flow)
                 flow["ai_note"] = ai_note
+
+            # Mark abnormal flows for the dedicated tab
+            _tag_abnormal(flow)
 
             await write_flow(flow)
 
