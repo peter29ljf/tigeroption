@@ -40,6 +40,16 @@ export function formatNumber(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+export function formatIV(iv?: number | null): string {
+  if (iv == null || iv === 0) return "—";
+  return (iv * 100).toFixed(1) + "%";
+}
+
+export function formatVolOI(volume?: number, oi?: number): string {
+  if (!volume || !oi || oi === 0) return "—";
+  return (volume / oi).toFixed(1) + "x";
+}
+
 export function isUSMarketOpen(): boolean {
   const now = dayjs().tz("America/New_York");
   const day = now.day();

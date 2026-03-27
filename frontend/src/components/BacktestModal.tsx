@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { formatPremiumUSD, formatContract } from "@/lib/format";
 import { TradingViewChart } from "@/components/TradingViewChart";
+import { useSignalStats } from "@/hooks/useFlows";
 import type { CandleBar } from "@/components/TradingViewChart";
 
 interface BacktestReturns {
@@ -21,6 +22,8 @@ interface BacktestResult {
 interface Props {
   flowId: number;
   label: string;
+  direction?: string;
+  minScore?: number;
   onClose: () => void;
 }
 
@@ -36,10 +39,27 @@ function ReturnBadge({ value, label }: { value: number | null; label: string }) 
   );
 }
 
-export function BacktestModal({ flowId, label, onClose }: Props) {
+function WinRateBadge({ rate, avg }: { rate: number | null; avg: number | null }) {
+  if (rate === null) return <div className="text-[var(--text-muted)] text-sm">—</div>;
+  const rateColor = rate >= 60 ? "text-green-400" : rate < 40 ? "text-red-400" : "text-yellow-400";
+  const avgSign = avg != null && avg > 0 ? "+" : "";
+  return (
+    <div className="text-center">
+      <div className={`text-base font-bold font-mono ${rateColor}`}>{rate}%</div>
+      {avg !== null && (
+        <div className={`text-xs font-mono ${avg > 0 ? "text-green-400" : avg < 0 ? "text-red-400" : "text-[var(--text-muted)]"}`}>
+          {avgSign}{avg}%
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function BacktestModal({ flowId, label, direction, minScore = 60, onClose }: Props) {
   const [data, setData] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { data: statsData, loading: statsLoading } = useSignalStats(direction, minScore);
 
   useEffect(() => {
     apiFetch<BacktestResult>(`/api/v1/backtest/${flowId}`)
@@ -117,6 +137,41 @@ export function BacktestModal({ flowId, label, onClose }: Props) {
                 ⚠️ 仅供参考，不构成投资建议。历史表现不代表未来收益。
               </p>
             </>
+          )}
+
+          {/* Historical win rate */}
+          {direction && (
+            <div className="border-t border-[var(--border-color)] pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-semibold text-[var(--text-primary)]">
+                  类似信号历史胜率
+                </span>
+                <span className="text-xs text-[var(--text-muted)]">
+                  方向: {direction} · 评分 ≥ {minScore}
+                  {statsData ? ` · ${statsData.total} 条已复盘` : ""}
+                </span>
+              </div>
+              {statsLoading ? (
+                <div className="text-xs text-[var(--text-muted)]">加载中...</div>
+              ) : statsData && statsData.total > 0 ? (
+                <div className="bg-[var(--bg-primary)] rounded-lg p-3">
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="text-xs text-[var(--text-muted)]" />
+                    <div className="text-xs text-[var(--text-muted)] font-medium">5天</div>
+                    <div className="text-xs text-[var(--text-muted)] font-medium">10天</div>
+                    <div className="text-xs text-[var(--text-muted)] font-medium">30天</div>
+                    <div className="text-xs text-[var(--text-muted)] text-left">胜率/均收益</div>
+                    <WinRateBadge rate={statsData.d5_win_rate} avg={statsData.d5_avg_return} />
+                    <WinRateBadge rate={statsData.d10_win_rate} avg={statsData.d10_avg_return} />
+                    <WinRateBadge rate={statsData.d30_win_rate} avg={statsData.d30_avg_return} />
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-[var(--text-muted)]">
+                  暂无历史胜率数据（需先点击复盘积累数据）
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

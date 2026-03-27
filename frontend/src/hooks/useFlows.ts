@@ -219,3 +219,26 @@ export function useAlertRules() {
 
   return { rules, loading: result.loading, error: result.error, createRule, toggleRule, deleteRule };
 }
+
+export interface SignalStats {
+  total: number;
+  d5_win_rate: number | null;
+  d10_win_rate: number | null;
+  d30_win_rate: number | null;
+  d5_avg_return: number | null;
+  d10_avg_return: number | null;
+  d30_avg_return: number | null;
+}
+
+export function useSignalStats(
+  direction?: string,
+  minScore = 60,
+  symbol?: string
+) {
+  const params = new URLSearchParams();
+  if (direction) params.set("direction", direction);
+  params.set("min_score", String(minScore));
+  if (symbol) params.set("symbol", symbol);
+  const path = `/api/v1/backtest/stats?${params.toString()}`;
+  return useApi<SignalStats>(path);
+}

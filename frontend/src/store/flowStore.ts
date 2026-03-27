@@ -15,7 +15,9 @@ export interface Flow {
   ai_note?: string;
   timestamp: string;
   volume?: number;
+  oi?: number;
   open_interest?: number;
+  iv?: number;
 }
 
 export interface FlowFilters {

@@ -38,3 +38,7 @@ class OptionFlow(Base):
     ai_note = Column(Text)
     stock_price = Column(Numeric(10, 2))
     raw_identifier = Column(String(64))
+    iv = Column(Numeric(8, 4), nullable=True)
+    d5_return = Column(Numeric(8, 4), nullable=True)
+    d10_return = Column(Numeric(8, 4), nullable=True)
+    d30_return = Column(Numeric(8, 4), nullable=True)

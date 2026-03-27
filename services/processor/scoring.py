@@ -49,6 +49,15 @@ def _dte_adjust(dte: int | None) -> int:
     return 0
 
 
+def _iv_crush_adjust(iv: float) -> int:
+    """Penalize flows with extremely high IV (earnings/events inflate IV, reducing signal reliability)."""
+    if iv > 1.5:
+        return -15
+    if iv > 1.0:
+        return -8
+    return 0
+
+
 _DIRECTION_MAP: dict[tuple[str, str], str] = {
     ("CALL", "BUY"): "BULLISH",
     ("PUT", "BUY"): "BEARISH",
@@ -76,6 +85,7 @@ def score_flow(flow_data: dict) -> dict:
     if dte is not None:
         dte = int(dte)
     put_call = str(flow_data.get("put_call", ""))
+    iv = float(flow_data.get("iv", 0) or 0)
 
     score = (
         _premium_score(premium)
@@ -83,6 +93,7 @@ def score_flow(flow_data: dict) -> dict:
         + _side_score(side)
         + _sweep_bonus(is_sweep)
         + _dte_adjust(dte)
+        + _iv_crush_adjust(iv)
     )
     score = max(0, min(100, score))
 

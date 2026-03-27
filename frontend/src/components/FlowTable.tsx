@@ -7,6 +7,8 @@ import {
   formatPremiumCNY,
   formatBeijingTime,
   formatContract,
+  formatIV,
+  formatVolOI,
 } from "@/lib/format";
 import { ScoreBadge } from "./ScoreBadge";
 import { DirectionTag } from "./DirectionTag";
@@ -41,6 +43,8 @@ export function FlowTable({ flows }: { flows: Flow[] }) {
             backtestFlow.expiry,
             backtestFlow.put_call
           )}
+          direction={backtestFlow.direction}
+          minScore={Math.max((backtestFlow.score ?? 60) - 10, 50)}
           onClose={() => setBacktestFlow(null)}
         />
       )}
@@ -56,6 +60,8 @@ export function FlowTable({ flows }: { flows: Flow[] }) {
               <th className="text-left py-3 px-3 font-medium">方向</th>
               <th className="text-right py-3 px-3 font-medium">溢价(USD)</th>
               <th className="text-right py-3 px-3 font-medium">溢价(CNY)</th>
+              <th className="text-right py-3 px-3 font-medium">IV%</th>
+              <th className="text-right py-3 px-3 font-medium">Vol/OI</th>
               <th className="text-center py-3 px-3 font-medium">评分</th>
               <th className="text-center py-3 px-3 font-medium">类型</th>
               <th className="text-left py-3 px-3 font-medium">AI解读</th>
@@ -89,6 +95,12 @@ export function FlowTable({ flows }: { flows: Flow[] }) {
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono text-[var(--text-muted)]">
                   {formatPremiumCNY(flow.premium)}
+                </td>
+                <td className="py-2.5 px-3 text-right font-mono text-[var(--text-muted)]">
+                  {formatIV(flow.iv)}
+                </td>
+                <td className="py-2.5 px-3 text-right font-mono text-[var(--text-muted)]">
+                  {formatVolOI(flow.volume, flow.oi)}
                 </td>
                 <td className="py-2.5 px-3 text-center">
                   <ScoreBadge score={flow.score} />

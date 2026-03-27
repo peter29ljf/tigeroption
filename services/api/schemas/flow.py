@@ -31,6 +31,10 @@ class FlowOut(BaseModel):
     ai_note: Optional[str] = None
     stock_price: Optional[Decimal] = None
     raw_identifier: Optional[str] = None
+    iv: Optional[float] = None
+    d5_return: Optional[float] = None
+    d10_return: Optional[float] = None
+    d30_return: Optional[float] = None
 
     @computed_field
     @property

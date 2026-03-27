@@ -4,6 +4,8 @@ import {
   formatPremiumCNY,
   formatBeijingTime,
   formatContract,
+  formatIV,
+  formatVolOI,
 } from "@/lib/format";
 import { ScoreBadge } from "./ScoreBadge";
 import { DirectionTag } from "./DirectionTag";
@@ -55,6 +57,14 @@ export function FlowCard({ flow, onBacktest }: Props) {
           </div>
           <div className="text-xs text-[var(--text-muted)]">
             {formatPremiumCNY(flow.premium)}
+          </div>
+          <div className="flex gap-3 mt-1">
+            <span className="text-xs text-[var(--text-muted)]">
+              IV <span className="font-mono">{formatIV(flow.iv)}</span>
+            </span>
+            <span className="text-xs text-[var(--text-muted)]">
+              Vol/OI <span className="font-mono">{formatVolOI(flow.volume, flow.oi)}</span>
+            </span>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">

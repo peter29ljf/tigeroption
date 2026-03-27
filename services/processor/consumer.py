@@ -5,10 +5,12 @@ import logging
 import os
 import socket
 from collections import deque
+from datetime import datetime, timezone
 
 import redis.asyncio as redis
 
 from config.settings import get_settings
+from services.processor.accumulation_tracker import AccumulationTracker, accumulation_bonus
 from services.processor.ai_interpreter import interpret
 from services.processor.db_writer import write_flow
 from services.processor.scoring import score_flow
@@ -25,6 +27,9 @@ AI_SCORE_THRESHOLD = 70
 
 def _consumer_name() -> str:
     return f"{socket.gethostname()}-{os.getpid()}"
+
+
+_acc_tracker = AccumulationTracker(window_minutes=60)
 
 
 class FlowConsumer:
@@ -102,6 +107,22 @@ class FlowConsumer:
 
             flow = score_flow(flow)
 
+            # Accumulation bonus: same symbol+direction 3+ times in 60 min
+            direction = str(flow.get("direction", "NEUTRAL"))
+            if direction in ("BULLISH", "BEARISH"):
+                count = _acc_tracker.record_and_count(
+                    str(flow.get("symbol", "")),
+                    direction,
+                    datetime.now(timezone.utc),
+                )
+                bonus = accumulation_bonus(count)
+                if bonus > 0:
+                    flow["score"] = min(int(flow["score"]) + bonus, 100)
+                    logger.debug(
+                        "Accumulation bonus +%d for %s %s (count=%d)",
+                        bonus, flow.get("symbol"), direction, count,
+                    )
+
             if flow["score"] >= AI_SCORE_THRESHOLD:
                 ai_note = await interpret(flow)
                 flow["ai_note"] = ai_note
@@ -128,7 +149,7 @@ class FlowConsumer:
                     flow[key] = int(value)
                 except (ValueError, TypeError):
                     flow[key] = value
-            elif key in ("strike", "bid_price", "ask_price", "stock_price"):
+            elif key in ("strike", "bid_price", "ask_price", "stock_price", "iv"):
                 try:
                     flow[key] = float(value)
                 except (ValueError, TypeError):

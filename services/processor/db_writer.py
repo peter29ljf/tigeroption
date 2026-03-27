@@ -45,6 +45,7 @@ COLUMN_MAP = {
     "ai_note": "ai_note",
     "stock_price": "stock_price",
     "raw_identifier": "raw_identifier",
+    "iv": "iv",
 }
 
 
@@ -74,6 +75,10 @@ class OptionFlow(Base):
     ai_note = Column(Text)
     stock_price = Column(Numeric(10, 2))
     raw_identifier = Column(String(64))
+    iv = Column(Numeric(8, 4))
+    d5_return = Column(Numeric(8, 4))
+    d10_return = Column(Numeric(8, 4))
+    d30_return = Column(Numeric(8, 4))
 
 
 def _get_engine():
