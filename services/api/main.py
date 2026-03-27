@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import get_settings
 from services.api.models.database import engine
-from services.api.routers import alerts, analysis, backtest, flows, sentiment
+from services.api.routers import alerts, analysis, backtest, flows, search, sentiment
 from services.api.websocket_manager import WebSocketManager
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,7 @@ app.include_router(analysis.router, prefix="/api/v1")
 app.include_router(backtest.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(sentiment.router, prefix="/api/v1")
+app.include_router(search.router, prefix="/api/v1")
 
 
 @app.get("/health")

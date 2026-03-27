@@ -2,12 +2,8 @@
 
 import { useState } from "react";
 import { useFlowStore, type FlowFilters } from "@/store/flowStore";
+import { useWatchlistStore, DEFAULT_SYMBOLS } from "@/store/watchlistStore";
 import clsx from "clsx";
-
-const WATCHLIST = [
-  "NVDA", "AAPL", "TSLA", "SPY", "QQQ",
-  "AMZN", "MSFT", "META", "GOOGL", "AMD",
-];
 
 const DIRECTIONS = [
   { value: "ALL", label: "全部" },
@@ -17,6 +13,7 @@ const DIRECTIONS = [
 
 export function FilterBar() {
   const { filters, updateFilters } = useFlowStore();
+  const watchlist = useWatchlistStore((s) => s.symbols.length > 0 ? s.symbols : DEFAULT_SYMBOLS);
   const [localSymbols, setLocalSymbols] = useState<string[]>(filters.symbols);
   const [localPremium, setLocalPremium] = useState(String(filters.min_premium || ""));
   const [localDirection, setLocalDirection] = useState<FlowFilters["direction"]>(filters.direction);
@@ -50,7 +47,7 @@ export function FilterBar() {
       <div>
         <label className="text-xs text-[var(--text-muted)] mb-2 block">标的</label>
         <div className="flex flex-wrap gap-2">
-          {WATCHLIST.map((sym) => (
+          {watchlist.map((sym) => (
             <button
               key={sym}
               onClick={() => toggleSymbol(sym)}

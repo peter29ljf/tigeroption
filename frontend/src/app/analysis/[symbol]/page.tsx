@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useAnalysis, usePrices, useChainSnapshot, useGEX, useOIDistribution } from "@/hooks/useFlows";
 import { FlowTable } from "@/components/FlowTable";
@@ -10,15 +11,17 @@ import { OptionChainHeatmap } from "@/components/OptionChainHeatmap";
 import { GEXChart } from "@/components/GEXChart";
 import { OIDistributionChart } from "@/components/OIDistributionChart";
 import { AIInsightPanel } from "@/components/AIInsightPanel";
+import { WatchlistManager } from "@/components/WatchlistManager";
+import { useWatchlistStore, DEFAULT_SYMBOLS } from "@/store/watchlistStore";
 import { formatNumber } from "@/lib/format";
 import Link from "next/link";
 import type { FlowMarker } from "@/components/TradingViewChart";
 
-const SYMBOLS = ["NVDA", "AAPL", "TSLA", "SPY", "QQQ", "AMZN", "MSFT", "META", "GOOGL", "AMD"];
-
 export default function AnalysisPage() {
   const params = useParams();
   const symbol = (params.symbol as string)?.toUpperCase() || "NVDA";
+  const [showWatchlistManager, setShowWatchlistManager] = useState(false);
+  const symbols = useWatchlistStore((s) => s.symbols.length > 0 ? s.symbols : DEFAULT_SYMBOLS);
   const { data, loading, error } = useAnalysis(symbol);
   const { data: prices } = usePrices(symbol, 60);
   const { data: chainData } = useChainSnapshot(symbol, 24);
@@ -37,7 +40,7 @@ export default function AnalysisPage() {
   return (
     <div className="space-y-6 pb-20 md:pb-0">
       <div className="flex flex-wrap gap-2">
-        {SYMBOLS.map((sym) => (
+        {symbols.map((sym) => (
           <Link
             key={sym}
             href={`/analysis/${sym}`}
@@ -50,7 +53,17 @@ export default function AnalysisPage() {
             {sym}
           </Link>
         ))}
+        <button
+          onClick={() => setShowWatchlistManager(true)}
+          className="px-3 py-1.5 rounded text-sm font-medium transition-colors border bg-[var(--bg-card)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--text-muted)]"
+        >
+          + 管理
+        </button>
       </div>
+
+      {showWatchlistManager && (
+        <WatchlistManager onClose={() => setShowWatchlistManager(false)} />
+      )}
 
       <div className="flex items-center gap-4">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">{symbol}</h1>
