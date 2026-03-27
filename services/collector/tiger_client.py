@@ -6,7 +6,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Any
 
-from tigeropen.common.consts import Market
+from tigeropen.common.consts import Market, BarPeriod
 from tigeropen.quote.quote_client import QuoteClient
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
@@ -97,6 +97,41 @@ class TigerClient:
         if df is None or df.empty:
             return []
         return df["date"].tolist()
+
+    @_retry()
+    def get_kline(self, symbol: str, period: str = "day", limit: int = 60) -> list[dict[str, Any]]:
+        """Returns OHLCV daily bars as list of dicts with keys:
+        time (yyyy-MM-dd str), open, high, low, close, volume."""
+        bar_period = BarPeriod.DAY if period == "day" else BarPeriod.WEEK
+        df = self._quote_client.get_kline(
+            symbols=[symbol],
+            period=bar_period,
+            limit=limit,
+            market=Market.US,
+        )
+        if df is None or df.empty:
+            return []
+        records = df.to_dict("records")
+        result = []
+        for row in records:
+            # Tiger returns 'time' as ms timestamp; convert to yyyy-MM-dd
+            ts = row.get("time") or row.get("timestamp") or row.get("date")
+            if ts is None:
+                continue
+            try:
+                from datetime import datetime as _dt
+                date_str = _dt.utcfromtimestamp(int(ts) / 1000).strftime("%Y-%m-%d")
+            except Exception:
+                date_str = str(ts)
+            result.append({
+                "time": date_str,
+                "open": float(row.get("open", 0) or 0),
+                "high": float(row.get("high", 0) or 0),
+                "low": float(row.get("low", 0) or 0),
+                "close": float(row.get("close", 0) or 0),
+                "volume": int(row.get("volume", 0) or 0),
+            })
+        return result
 
 
 def get_tiger_client() -> TigerClient:

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { Flow } from "@/store/flowStore";
 import {
   formatPremiumUSD,
@@ -10,9 +11,12 @@ import {
 import { ScoreBadge } from "./ScoreBadge";
 import { DirectionTag } from "./DirectionTag";
 import { FlowCard } from "./FlowCard";
+import { BacktestModal } from "./BacktestModal";
 import clsx from "clsx";
 
 export function FlowTable({ flows }: { flows: Flow[] }) {
+  const [backtestFlow, setBacktestFlow] = useState<Flow | null>(null);
+
   const sorted = [...flows].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
@@ -27,6 +31,19 @@ export function FlowTable({ flows }: { flows: Flow[] }) {
 
   return (
     <>
+      {backtestFlow && (
+        <BacktestModal
+          flowId={Number(backtestFlow.id)}
+          label={formatContract(
+            backtestFlow.symbol,
+            backtestFlow.strike,
+            backtestFlow.expiry,
+            backtestFlow.put_call
+          )}
+          onClose={() => setBacktestFlow(null)}
+        />
+      )}
+
       {/* Desktop table */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
@@ -41,6 +58,7 @@ export function FlowTable({ flows }: { flows: Flow[] }) {
               <th className="text-center py-3 px-3 font-medium">评分</th>
               <th className="text-center py-3 px-3 font-medium">类型</th>
               <th className="text-left py-3 px-3 font-medium">AI解读</th>
+              <th className="py-3 px-3" />
             </tr>
           </thead>
           <tbody>
@@ -75,16 +93,32 @@ export function FlowTable({ flows }: { flows: Flow[] }) {
                   <ScoreBadge score={flow.score} />
                 </td>
                 <td className="py-2.5 px-3 text-center">
-                  {flow.is_sweep ? (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-500/20 text-orange-400">
-                      扫单
-                    </span>
-                  ) : (
-                    <span className="text-[var(--text-muted)] text-xs">普通</span>
-                  )}
+                  <div className="flex items-center justify-center gap-1 flex-wrap">
+                    {flow.is_sweep && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-500/20 text-orange-400">
+                        扫单
+                      </span>
+                    )}
+                    {flow.is_dark_pool && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/20 text-purple-400">
+                        暗池
+                      </span>
+                    )}
+                    {!flow.is_sweep && !flow.is_dark_pool && (
+                      <span className="text-[var(--text-muted)] text-xs">普通</span>
+                    )}
+                  </div>
                 </td>
                 <td className="py-2.5 px-3 text-xs text-[var(--text-secondary)] max-w-[200px] truncate">
                   {flow.ai_note || "—"}
+                </td>
+                <td className="py-2.5 px-3">
+                  <button
+                    onClick={() => setBacktestFlow(flow)}
+                    className="text-xs text-[var(--accent-blue)] hover:underline whitespace-nowrap"
+                  >
+                    复盘
+                  </button>
                 </td>
               </tr>
             ))}
@@ -95,7 +129,7 @@ export function FlowTable({ flows }: { flows: Flow[] }) {
       {/* Mobile cards */}
       <div className="md:hidden flex flex-col gap-3">
         {sorted.map((flow) => (
-          <FlowCard key={flow.id} flow={flow} />
+          <FlowCard key={flow.id} flow={flow} onBacktest={() => setBacktestFlow(flow)} />
         ))}
       </div>
     </>

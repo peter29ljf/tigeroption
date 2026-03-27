@@ -9,7 +9,12 @@ import { ScoreBadge } from "./ScoreBadge";
 import { DirectionTag } from "./DirectionTag";
 import clsx from "clsx";
 
-export function FlowCard({ flow }: { flow: Flow }) {
+interface Props {
+  flow: Flow;
+  onBacktest?: () => void;
+}
+
+export function FlowCard({ flow, onBacktest }: Props) {
   return (
     <div
       className={clsx(
@@ -20,7 +25,7 @@ export function FlowCard({ flow }: { flow: Flow }) {
       )}
     >
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-lg font-bold text-[var(--text-primary)]">
             {flow.symbol}
           </span>
@@ -28,6 +33,11 @@ export function FlowCard({ flow }: { flow: Flow }) {
           {flow.is_sweep && (
             <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
               扫单
+            </span>
+          )}
+          {flow.is_dark_pool && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+              暗池
             </span>
           )}
         </div>
@@ -47,8 +57,18 @@ export function FlowCard({ flow }: { flow: Flow }) {
             {formatPremiumCNY(flow.premium)}
           </div>
         </div>
-        <div className="text-xs text-[var(--text-muted)]">
-          {formatBeijingTime(flow.timestamp)}
+        <div className="flex flex-col items-end gap-1">
+          <div className="text-xs text-[var(--text-muted)]">
+            {formatBeijingTime(flow.timestamp)}
+          </div>
+          {onBacktest && (
+            <button
+              onClick={onBacktest}
+              className="text-xs text-[var(--accent-blue)] hover:underline"
+            >
+              复盘
+            </button>
+          )}
         </div>
       </div>
 

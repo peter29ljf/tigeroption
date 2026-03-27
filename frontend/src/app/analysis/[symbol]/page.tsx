@@ -1,12 +1,16 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useAnalysis } from "@/hooks/useFlows";
+import { useAnalysis, usePrices, useChainSnapshot, useGEX } from "@/hooks/useFlows";
 import { FlowTable } from "@/components/FlowTable";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { SentimentBar } from "@/components/SentimentBar";
+import { TradingViewChart } from "@/components/TradingViewChart";
+import { OptionChainHeatmap } from "@/components/OptionChainHeatmap";
+import { GEXChart } from "@/components/GEXChart";
 import { formatNumber } from "@/lib/format";
 import Link from "next/link";
+import type { FlowMarker } from "@/components/TradingViewChart";
 
 const SYMBOLS = ["NVDA", "AAPL", "TSLA", "SPY", "QQQ", "AMZN", "MSFT", "META", "GOOGL", "AMD"];
 
@@ -14,10 +18,21 @@ export default function AnalysisPage() {
   const params = useParams();
   const symbol = (params.symbol as string)?.toUpperCase() || "SPY";
   const { data, loading, error } = useAnalysis(symbol);
+  const { data: prices } = usePrices(symbol, 60);
+  const { data: chainData } = useChainSnapshot(symbol, 24);
+  const { data: gexData } = useGEX(symbol);
+
+  const flowMarkers: FlowMarker[] = (data?.top_flows ?? [])
+    .filter((f) => f.timestamp && f.direction)
+    .map((f) => ({
+      time: f.timestamp.slice(0, 10),
+      direction: f.direction as "BULLISH" | "BEARISH" | "NEUTRAL",
+      premium: f.premium,
+      score: f.score,
+    }));
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      {/* Symbol selector */}
       <div className="flex flex-wrap gap-2">
         {SYMBOLS.map((sym) => (
           <Link
@@ -34,7 +49,6 @@ export default function AnalysisPage() {
         ))}
       </div>
 
-      {/* Header */}
       <div className="flex items-center gap-4">
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">{symbol}</h1>
         {data?.current_price && (
@@ -61,7 +75,6 @@ export default function AnalysisPage() {
 
       {data && (
         <>
-          {/* Stats cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
               <div className="text-xs text-[var(--text-muted)] mb-1">大单数量</div>
@@ -72,7 +85,7 @@ export default function AnalysisPage() {
             <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
               <div className="text-xs text-[var(--text-muted)] mb-1">平均评分</div>
               <div className="text-xl font-bold">
-                <ScoreBadge score={Math.round(data.avg_score)} />
+                <ScoreBadge score={Math.round(data.avg_score ?? 0)} />
               </div>
             </div>
             <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4 col-span-2">
@@ -85,20 +98,42 @@ export default function AnalysisPage() {
             </div>
           </div>
 
-          {/* Chart placeholder */}
           <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">价格走势</h2>
-            <div className="flex items-center justify-center h-64 border border-dashed border-[var(--border-color)] rounded-lg text-[var(--text-muted)] text-sm">
-              TradingView 图表 (即将上线)
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">价格走势（近60日）</h2>
+              <span className="text-xs text-[var(--text-muted)]">箭头标记 = 大单信号</span>
+            </div>
+            <TradingViewChart data={prices ?? []} markers={flowMarkers} height={320} />
+          </div>
+
+          {/* GEX and chain heatmap side by side on desktop */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">Gamma曝露 (GEX)</h2>
+                <span className="text-xs text-[var(--text-muted)]">磁铁 = 价格支撑/阻力区</span>
+              </div>
+              <GEXChart
+                strikes={gexData?.strikes ?? []}
+                maxGexStrike={gexData?.max_gex_strike ?? null}
+                stockPrice={gexData?.stock_price ?? null}
+              />
+            </div>
+
+            <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">期权链热力图（近24h）</h2>
+                <span className="text-xs text-[var(--text-muted)]">Call绿 / Put红</span>
+              </div>
+              <OptionChainHeatmap rows={chainData?.rows ?? []} />
             </div>
           </div>
 
-          {/* Top flows */}
           <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
             <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-4">
-              最高评分大单 (Top 10)
+              最高溢价大单 (Top 10) — 点击「复盘」查看信号后走势
             </h2>
-            <FlowTable flows={data.top_flows || []} />
+            <FlowTable flows={data.top_flows ?? []} />
           </div>
         </>
       )}

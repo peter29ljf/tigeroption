@@ -6,6 +6,9 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from config.settings import get_settings
+from services.api.models.database import Base  # noqa: F401 - triggers model registration
+import services.api.models.option_flow  # noqa: F401
+import services.api.models.alert_rule   # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
@@ -13,7 +16,7 @@ if config.config_file_name is not None:
 
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:

@@ -10,6 +10,8 @@ export interface Flow {
   premium: number;
   score: number;
   is_sweep: boolean;
+  is_dark_pool?: boolean;
+  side?: string;
   ai_note?: string;
   timestamp: string;
   volume?: number;

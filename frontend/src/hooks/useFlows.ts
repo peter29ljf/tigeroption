@@ -103,6 +103,61 @@ export interface AlertRule {
   active: boolean;
 }
 
+export interface CandleBar {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export function usePrices(symbol: string, days = 60) {
+  return useApi<CandleBar[]>(
+    symbol ? `/api/v1/analysis/${symbol}/prices?days=${days}` : null
+  );
+}
+
+export interface ChainSnapshotRow {
+  strike: number;
+  expiry: string;
+  call_volume: number;
+  put_volume: number;
+  call_premium: number;
+  put_premium: number;
+}
+
+export interface ChainSnapshot {
+  symbol: string;
+  rows: ChainSnapshotRow[];
+}
+
+export function useChainSnapshot(symbol: string, hours = 24) {
+  return useApi<ChainSnapshot>(
+    symbol ? `/api/v1/analysis/${symbol}/chain-snapshot?hours=${hours}` : null
+  );
+}
+
+export interface GEXStrike {
+  strike: number;
+  call_gex: number;
+  put_gex: number;
+  net_gex: number;
+}
+
+export interface GEXData {
+  symbol: string;
+  strikes: GEXStrike[];
+  max_gex_strike: number | null;
+  stock_price: number | null;
+}
+
+export function useGEX(symbol: string) {
+  return useApi<GEXData>(
+    symbol ? `/api/v1/analysis/${symbol}/gex` : null
+  );
+}
+
 export function useAlertRules() {
   const result = useApi<AlertRule[]>("/api/v1/alerts");
   const [rules, setRules] = useState<AlertRule[]>([]);

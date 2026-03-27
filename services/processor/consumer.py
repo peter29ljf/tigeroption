@@ -82,12 +82,23 @@ class FlowConsumer:
             except Exception:
                 logger.exception("Error in consumer loop")
 
+    @staticmethod
+    def _is_dark_pool(flow: dict) -> bool:
+        """Heuristic: large mid-price trade with low vol/OI = likely block/dark-pool-like."""
+        premium = int(flow.get("premium", 0))
+        side = str(flow.get("side", "")).upper()
+        volume = int(flow.get("volume", 0))
+        oi = int(flow.get("oi", 0))
+        vol_oi = volume / oi if oi > 0 else 0
+        return premium >= 50_000_000 and side == "MID" and vol_oi < 0.3
+
     async def _process_message(self, msg_id: str, fields: dict) -> None:
         assert self._redis is not None
         try:
             flow = self._parse_flow(fields)
             is_sweep = detect_sweep(flow, self._sweep_buffer)
             flow["is_sweep"] = is_sweep
+            flow["is_dark_pool"] = self._is_dark_pool(flow)
 
             flow = score_flow(flow)
 
