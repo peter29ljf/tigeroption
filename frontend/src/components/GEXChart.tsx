@@ -23,10 +23,17 @@ function fmt(v: number): string {
 }
 
 export function GEXChart({ strikes, maxGexStrike, stockPrice }: Props) {
+  // All hooks must be called before any early return
   const maxAbs = useMemo(
     () => Math.max(...strikes.map((s) => Math.abs(s.net_gex)), 1),
     [strikes]
   );
+
+  const displayed = useMemo(() => {
+    if (!stockPrice) return strikes.slice(0, 20);
+    const sorted = [...strikes].sort((a, b) => Math.abs(a.strike - stockPrice) - Math.abs(b.strike - stockPrice));
+    return sorted.slice(0, 20).sort((a, b) => b.strike - a.strike);
+  }, [strikes, stockPrice]);
 
   if (strikes.length === 0) {
     return (
@@ -35,13 +42,6 @@ export function GEXChart({ strikes, maxGexStrike, stockPrice }: Props) {
       </div>
     );
   }
-
-  // Show at most 20 strikes centered around stock price
-  const displayed = useMemo(() => {
-    if (!stockPrice) return strikes.slice(0, 20);
-    const sorted = [...strikes].sort((a, b) => Math.abs(a.strike - stockPrice) - Math.abs(b.strike - stockPrice));
-    return sorted.slice(0, 20).sort((a, b) => b.strike - a.strike);
-  }, [strikes, stockPrice]);
 
   return (
     <div className="space-y-1 overflow-y-auto max-h-[360px] pr-1">
