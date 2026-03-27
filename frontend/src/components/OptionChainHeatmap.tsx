@@ -43,8 +43,9 @@ export function OptionChainHeatmap({ rows }: Props) {
 
   if (rows.length === 0) {
     return (
-      <div className="flex items-center justify-center h-32 border border-dashed border-[var(--border-color)] rounded-lg text-[var(--text-muted)] text-sm">
-        暂无期权链数据
+      <div className="flex flex-col items-center justify-center h-32 border border-dashed border-[var(--border-color)] rounded-lg gap-1">
+        <div className="text-[var(--text-muted)] text-sm">该标的过去24小时暂无期权链数据</div>
+        <div className="text-[var(--text-muted)] text-xs">采集服务运行后将自动填充</div>
       </div>
     );
   }

@@ -23,8 +23,9 @@ export function FlowTable({ flows }: { flows: Flow[] }) {
 
   if (sorted.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-[var(--text-muted)]">
-        暂无数据
+      <div className="flex flex-col items-center justify-center h-48 gap-2 text-[var(--text-muted)]">
+        <div className="text-sm">该标的过去7天暂无大单记录</div>
+        <div className="text-xs">采集服务运行后将自动填充数据</div>
       </div>
     );
   }
@@ -58,7 +59,7 @@ export function FlowTable({ flows }: { flows: Flow[] }) {
               <th className="text-center py-3 px-3 font-medium">评分</th>
               <th className="text-center py-3 px-3 font-medium">类型</th>
               <th className="text-left py-3 px-3 font-medium">AI解读</th>
-              <th className="py-3 px-3" />
+              <th className="py-3 px-3 sticky right-0 bg-[var(--bg-card)]" />
             </tr>
           </thead>
           <tbody>
@@ -112,10 +113,10 @@ export function FlowTable({ flows }: { flows: Flow[] }) {
                 <td className="py-2.5 px-3 text-xs text-[var(--text-secondary)] max-w-[200px] truncate">
                   {flow.ai_note || "—"}
                 </td>
-                <td className="py-2.5 px-3">
+                <td className="py-2.5 px-3 sticky right-0 bg-[var(--bg-card)] group-hover:bg-[var(--bg-card-hover)]">
                   <button
                     onClick={() => setBacktestFlow(flow)}
-                    className="text-xs text-[var(--accent-blue)] hover:underline whitespace-nowrap"
+                    className="px-2 py-0.5 rounded text-xs bg-[var(--accent-blue)]/20 text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30 border border-[var(--accent-blue)]/30 whitespace-nowrap"
                   >
                     复盘
                   </button>

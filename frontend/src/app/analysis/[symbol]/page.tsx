@@ -9,6 +9,7 @@ import { TradingViewChart } from "@/components/TradingViewChart";
 import { OptionChainHeatmap } from "@/components/OptionChainHeatmap";
 import { GEXChart } from "@/components/GEXChart";
 import { OIDistributionChart } from "@/components/OIDistributionChart";
+import { AIInsightPanel } from "@/components/AIInsightPanel";
 import { formatNumber } from "@/lib/format";
 import Link from "next/link";
 import type { FlowMarker } from "@/components/TradingViewChart";
@@ -17,12 +18,12 @@ const SYMBOLS = ["NVDA", "AAPL", "TSLA", "SPY", "QQQ", "AMZN", "MSFT", "META", "
 
 export default function AnalysisPage() {
   const params = useParams();
-  const symbol = (params.symbol as string)?.toUpperCase() || "SPY";
+  const symbol = (params.symbol as string)?.toUpperCase() || "NVDA";
   const { data, loading, error } = useAnalysis(symbol);
   const { data: prices } = usePrices(symbol, 60);
   const { data: chainData } = useChainSnapshot(symbol, 24);
-  const { data: gexData } = useGEX(symbol);
-  const { data: oiData } = useOIDistribution(symbol);
+  const { data: gexData, loading: gexLoading } = useGEX(symbol);
+  const { data: oiData, loading: oiLoading } = useOIDistribution(symbol);
 
   const flowMarkers: FlowMarker[] = (data?.top_flows ?? [])
     .filter((f) => f.timestamp && f.direction)
@@ -115,11 +116,18 @@ export default function AnalysisPage() {
                 <h2 className="text-sm font-semibold text-[var(--text-primary)]">Gamma曝露 (GEX)</h2>
                 <span className="text-xs text-[var(--text-muted)]">磁铁 = 价格支撑/阻力区</span>
               </div>
-              <GEXChart
-                strikes={gexData?.strikes ?? []}
-                maxGexStrike={gexData?.max_gex_strike ?? null}
-                stockPrice={gexData?.stock_price ?? null}
-              />
+              {gexLoading ? (
+                <div className="flex items-center justify-center h-32 text-[var(--text-muted)] text-sm gap-2">
+                  <div className="w-3 h-3 border-2 border-[var(--accent-blue)] border-t-transparent rounded-full animate-spin" />
+                  加载中...
+                </div>
+              ) : (
+                <GEXChart
+                  strikes={gexData?.strikes ?? []}
+                  maxGexStrike={gexData?.max_gex_strike ?? null}
+                  stockPrice={gexData?.stock_price ?? null}
+                />
+              )}
             </div>
 
             <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
@@ -127,13 +135,20 @@ export default function AnalysisPage() {
                 <h2 className="text-sm font-semibold text-[var(--text-primary)]">未平仓量分析 (OI)</h2>
                 <span className="text-xs text-[var(--text-muted)]">P/C比率 {">"} 1.5 = 机构偏空</span>
               </div>
-              <OIDistributionChart
-                strikes={oiData?.strikes ?? []}
-                totalCallOI={oiData?.total_call_oi ?? 0}
-                totalPutOI={oiData?.total_put_oi ?? 0}
-                putCallRatio={oiData?.put_call_oi_ratio ?? null}
-                stockPrice={gexData?.stock_price ?? null}
-              />
+              {oiLoading ? (
+                <div className="flex items-center justify-center h-32 text-[var(--text-muted)] text-sm gap-2">
+                  <div className="w-3 h-3 border-2 border-[var(--accent-blue)] border-t-transparent rounded-full animate-spin" />
+                  加载中...
+                </div>
+              ) : (
+                <OIDistributionChart
+                  strikes={oiData?.strikes ?? []}
+                  totalCallOI={oiData?.total_call_oi ?? 0}
+                  totalPutOI={oiData?.total_put_oi ?? 0}
+                  putCallRatio={oiData?.put_call_oi_ratio ?? null}
+                  stockPrice={data?.current_price ?? null}
+                />
+              )}
             </div>
           </div>
 
@@ -152,6 +167,8 @@ export default function AnalysisPage() {
             </h2>
             <FlowTable flows={data.top_flows ?? []} />
           </div>
+
+          <AIInsightPanel symbol={symbol} />
         </>
       )}
     </div>

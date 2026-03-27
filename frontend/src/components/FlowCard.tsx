@@ -64,7 +64,7 @@ export function FlowCard({ flow, onBacktest }: Props) {
           {onBacktest && (
             <button
               onClick={onBacktest}
-              className="text-xs text-[var(--accent-blue)] hover:underline"
+              className="px-2 py-0.5 rounded text-xs bg-[var(--accent-blue)]/20 text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30 border border-[var(--accent-blue)]/30"
             >
               复盘
             </button>

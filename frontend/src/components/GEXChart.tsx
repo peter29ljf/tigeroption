@@ -35,10 +35,21 @@ export function GEXChart({ strikes, maxGexStrike, stockPrice }: Props) {
     return sorted.slice(0, 20).sort((a, b) => b.strike - a.strike);
   }, [strikes, stockPrice]);
 
+  const allZero = strikes.every((s) => s.net_gex === 0);
+
   if (strikes.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 border border-dashed border-[var(--border-color)] rounded-lg text-[var(--text-muted)] text-sm">
         暂无 GEX 数据（需市场数据权限）
+      </div>
+    );
+  }
+
+  if (allZero) {
+    return (
+      <div className="flex flex-col items-center justify-center h-32 border border-dashed border-[var(--border-color)] rounded-lg gap-1">
+        <div className="text-[var(--text-muted)] text-sm">非交易时段，Delta 数据为零</div>
+        <div className="text-[var(--text-muted)] text-xs">{strikes.length} 个行权价已加载，交易时段将显示 GEX 分布</div>
       </div>
     );
   }
