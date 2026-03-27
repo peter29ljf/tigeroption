@@ -50,12 +50,12 @@ async def market_sentiment(
         ]
         bullish = (
             await db.execute(
-                select(func.count()).where(*base_filter, OptionFlow.direction == "bullish")
+                select(func.count()).where(*base_filter, OptionFlow.direction == "BULLISH")
             )
         ).scalar() or 0
         bearish = (
             await db.execute(
-                select(func.count()).where(*base_filter, OptionFlow.direction == "bearish")
+                select(func.count()).where(*base_filter, OptionFlow.direction == "BEARISH")
             )
         ).scalar() or 0
 

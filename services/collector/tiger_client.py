@@ -103,11 +103,10 @@ class TigerClient:
         """Returns OHLCV daily bars as list of dicts with keys:
         time (yyyy-MM-dd str), open, high, low, close, volume."""
         bar_period = BarPeriod.DAY if period == "day" else BarPeriod.WEEK
-        df = self._quote_client.get_kline(
+        df = self._quote_client.get_bars(
             symbols=[symbol],
             period=bar_period,
             limit=limit,
-            market=Market.US,
         )
         if df is None or df.empty:
             return []

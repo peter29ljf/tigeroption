@@ -65,11 +65,11 @@ async def flow_stats(db: AsyncSession = Depends(get_db)) -> FlowStats:
     avg_stmt = select(func.avg(OptionFlow.score)).where(OptionFlow.timestamp >= one_hour_ago)
     bullish_stmt = select(func.count()).where(
         OptionFlow.timestamp >= one_hour_ago,
-        OptionFlow.direction == "bullish",
+        OptionFlow.direction == "BULLISH",
     )
     bearish_stmt = select(func.count()).where(
         OptionFlow.timestamp >= one_hour_ago,
-        OptionFlow.direction == "bearish",
+        OptionFlow.direction == "BEARISH",
     )
 
     total = (await db.execute(count_stmt)).scalar() or 0
