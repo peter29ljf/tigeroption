@@ -210,6 +210,91 @@ async def gamma_exposure(
     )
 
 
+class OIStrike(BaseModel):
+    strike: float
+    call_oi: int
+    put_oi: int
+    net_oi: int
+
+
+class OIDistribution(BaseModel):
+    symbol: str
+    put_call_oi_ratio: float | None
+    total_call_oi: int
+    total_put_oi: int
+    strikes: list[OIStrike]
+    top_oi_strikes: list[dict]
+
+
+@router.get("/{symbol}/oi-distribution", response_model=OIDistribution)
+async def oi_distribution(
+    symbol: str,
+    expiry_count: int = Query(2, ge=1, le=5),
+) -> OIDistribution:
+    """Return Open Interest distribution per strike from live Tiger option chain.
+    Calculates put/call OI ratio as a market sentiment indicator.
+    """
+    upper_symbol = symbol.upper()
+    strikes_map: dict[float, dict] = {}
+
+    try:
+        client = get_tiger_client()
+        expiries = await __import__("asyncio").to_thread(
+            client.get_option_expirations, upper_symbol
+        )
+        for expiry in expiries[:expiry_count]:
+            chain = await __import__("asyncio").to_thread(
+                client.get_option_chain, upper_symbol, expiry
+            )
+            for row in chain:
+                strike = float(row.get("strike", 0) or 0)
+                if strike == 0:
+                    continue
+                oi = int(row.get("open_interest", 0) or 0)
+                pc = str(row.get("put_call", "") or "").upper()
+                if strike not in strikes_map:
+                    strikes_map[strike] = {"call_oi": 0, "put_oi": 0}
+                if pc in ("CALL", "C"):
+                    strikes_map[strike]["call_oi"] += oi
+                elif pc in ("PUT", "P"):
+                    strikes_map[strike]["put_oi"] += oi
+    except Exception:
+        logger.exception("Failed to fetch option chain for OI %s", upper_symbol)
+
+    oi_list = []
+    total_call_oi = 0
+    total_put_oi = 0
+    for strike, v in sorted(strikes_map.items()):
+        call_oi = v["call_oi"]
+        put_oi = v["put_oi"]
+        total_call_oi += call_oi
+        total_put_oi += put_oi
+        oi_list.append(OIStrike(
+            strike=strike,
+            call_oi=call_oi,
+            put_oi=put_oi,
+            net_oi=call_oi - put_oi,
+        ))
+
+    pc_ratio = round(total_put_oi / total_call_oi, 4) if total_call_oi > 0 else None
+
+    # Top 5 strikes by total OI (institutional concentration zones)
+    top_oi = sorted(
+        [{"strike": s.strike, "total_oi": s.call_oi + s.put_oi} for s in oi_list],
+        key=lambda x: x["total_oi"],
+        reverse=True,
+    )[:5]
+
+    return OIDistribution(
+        symbol=upper_symbol,
+        put_call_oi_ratio=pc_ratio,
+        total_call_oi=total_call_oi,
+        total_put_oi=total_put_oi,
+        strikes=oi_list,
+        top_oi_strikes=top_oi,
+    )
+
+
 @router.get("/{symbol}/chain-snapshot", response_model=ChainSnapshot)
 async def chain_snapshot(
     symbol: str,

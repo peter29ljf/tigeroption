@@ -158,6 +158,30 @@ export function useGEX(symbol: string) {
   );
 }
 
+export interface OIStrike {
+  strike: number;
+  call_oi: number;
+  put_oi: number;
+  net_oi: number;
+}
+
+export interface OIDistribution {
+  symbol: string;
+  put_call_oi_ratio: number | null;
+  total_call_oi: number;
+  total_put_oi: number;
+  strikes: OIStrike[];
+  top_oi_strikes: { strike: number; total_oi: number }[];
+}
+
+export function useOIDistribution(symbol: string, expiryCount = 2) {
+  return useApi<OIDistribution>(
+    symbol
+      ? `/api/v1/analysis/${symbol}/oi-distribution?expiry_count=${expiryCount}`
+      : null
+  );
+}
+
 export function useAlertRules() {
   const result = useApi<AlertRule[]>("/api/v1/alerts");
   const [rules, setRules] = useState<AlertRule[]>([]);

@@ -29,6 +29,7 @@ class OptionFlow:
     ask: float
     premium_cents: int
     stock_price: float
+    oi: int = 0
     timestamp: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, str]:
@@ -45,6 +46,7 @@ class OptionFlow:
             "ask": str(self.ask),
             "premium_cents": str(self.premium_cents),
             "stock_price": str(self.stock_price),
+            "oi": str(self.oi),
             "timestamp": str(self.timestamp),
         }
 
@@ -156,6 +158,7 @@ class OptionChainPoller:
             strike = float(self._get_field(item, "strike", 0) or 0)
             # put_call is full word: 'PUT' or 'CALL'
             right = str(self._get_field(item, "put_call", "") or "").upper()
+            oi = int(self._get_field(item, "open_interest", 0) or 0)
 
             premium_cents = int(volume_delta * price_for_premium * 100 * 100)
             if premium_cents < threshold:
@@ -176,6 +179,7 @@ class OptionChainPoller:
                 ask=ask,
                 premium_cents=premium_cents,
                 stock_price=stock_price,
+                oi=oi,
             )
 
             logger.info(

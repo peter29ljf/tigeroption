@@ -1,13 +1,14 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useAnalysis, usePrices, useChainSnapshot, useGEX } from "@/hooks/useFlows";
+import { useAnalysis, usePrices, useChainSnapshot, useGEX, useOIDistribution } from "@/hooks/useFlows";
 import { FlowTable } from "@/components/FlowTable";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { SentimentBar } from "@/components/SentimentBar";
 import { TradingViewChart } from "@/components/TradingViewChart";
 import { OptionChainHeatmap } from "@/components/OptionChainHeatmap";
 import { GEXChart } from "@/components/GEXChart";
+import { OIDistributionChart } from "@/components/OIDistributionChart";
 import { formatNumber } from "@/lib/format";
 import Link from "next/link";
 import type { FlowMarker } from "@/components/TradingViewChart";
@@ -21,6 +22,7 @@ export default function AnalysisPage() {
   const { data: prices } = usePrices(symbol, 60);
   const { data: chainData } = useChainSnapshot(symbol, 24);
   const { data: gexData } = useGEX(symbol);
+  const { data: oiData } = useOIDistribution(symbol);
 
   const flowMarkers: FlowMarker[] = (data?.top_flows ?? [])
     .filter((f) => f.timestamp && f.direction)
@@ -106,7 +108,7 @@ export default function AnalysisPage() {
             <TradingViewChart data={prices ?? []} markers={flowMarkers} height={320} />
           </div>
 
-          {/* GEX and chain heatmap side by side on desktop */}
+          {/* GEX and OI side by side */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
               <div className="flex items-center justify-between mb-4">
@@ -122,11 +124,26 @@ export default function AnalysisPage() {
 
             <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-[var(--text-primary)]">期权链热力图（近24h）</h2>
-                <span className="text-xs text-[var(--text-muted)]">Call绿 / Put红</span>
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">未平仓量分析 (OI)</h2>
+                <span className="text-xs text-[var(--text-muted)]">P/C比率 {">"} 1.5 = 机构偏空</span>
               </div>
-              <OptionChainHeatmap rows={chainData?.rows ?? []} />
+              <OIDistributionChart
+                strikes={oiData?.strikes ?? []}
+                totalCallOI={oiData?.total_call_oi ?? 0}
+                totalPutOI={oiData?.total_put_oi ?? 0}
+                putCallRatio={oiData?.put_call_oi_ratio ?? null}
+                stockPrice={gexData?.stock_price ?? null}
+              />
             </div>
+          </div>
+
+          {/* Option chain heatmap */}
+          <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">期权链热力图（近24h）</h2>
+              <span className="text-xs text-[var(--text-muted)]">Call绿 / Put红</span>
+            </div>
+            <OptionChainHeatmap rows={chainData?.rows ?? []} />
           </div>
 
           <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border-color)] p-4">
