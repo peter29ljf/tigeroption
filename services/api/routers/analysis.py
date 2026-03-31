@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime, timedelta, timezone
 
 import anthropic
@@ -17,6 +18,57 @@ from services.collector.tiger_client import get_tiger_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/analysis", tags=["analysis"])
+
+
+def _norm_cdf(x: float) -> float:
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+def _bs_delta(
+    S: float, K: float, T: float, r: float, sigma: float, is_call: bool
+) -> float:
+    """Black-Scholes delta. T in years, sigma as decimal (e.g. 0.40)."""
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    d1 = (math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+    return _norm_cdf(d1) if is_call else _norm_cdf(d1) - 1.0
+
+
+def _bs_gamma(
+    S: float, K: float, T: float, r: float, sigma: float,
+) -> float:
+    """Black-Scholes gamma (same for call and put)."""
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    d1 = (math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+    return math.exp(-0.5 * d1 * d1) / (S * sigma * math.sqrt(2.0 * math.pi * T))
+
+
+_DEFAULT_RISK_FREE_RATE = 0.045
+
+
+def _implied_vol_from_price(
+    S: float, K: float, T: float, r: float, market_price: float, is_call: bool,
+) -> float:
+    """Newton-Raphson IV solver. Returns IV or 0 if it fails."""
+    if market_price <= 0 or T <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    sigma = 0.3
+    for _ in range(50):
+        d1 = (math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        if is_call:
+            price = S * _norm_cdf(d1) - K * math.exp(-r * T) * _norm_cdf(d2)
+        else:
+            price = K * math.exp(-r * T) * _norm_cdf(-d2) - S * _norm_cdf(-d1)
+        vega = S * math.sqrt(T) * math.exp(-0.5 * d1 * d1) / math.sqrt(2.0 * math.pi)
+        if vega < 1e-12:
+            break
+        sigma -= (price - market_price) / vega
+        sigma = max(sigma, 0.01)
+        if abs(price - market_price) < 1e-6:
+            break
+    return sigma if 0.01 <= sigma <= 5.0 else 0.0
 
 
 class SymbolAnalysis(BaseModel):
@@ -189,23 +241,53 @@ async def gamma_exposure(
         expiries = await __import__("asyncio").to_thread(
             client.get_option_expirations, upper_symbol
         )
-        # Use nearest 2 expirations only (rate-limit safe)
+        sp = stock_price or 1.0
+        now = datetime.now(timezone.utc)
         for expiry in expiries[:2]:
             chain = await __import__("asyncio").to_thread(
                 client.get_option_chain, upper_symbol, expiry
             )
-            sp = stock_price or 1.0
+            try:
+                exp_dt = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                T_years = max((exp_dt - now).total_seconds() / (365.25 * 86400), 1 / (365.25 * 24))
+            except Exception:
+                T_years = 1 / 365.25
+
             for row in chain:
                 strike = float(row.get("strike", 0) or 0)
                 if strike == 0:
                     continue
-                delta = float(row.get("delta", 0) or 0)
                 oi = int(row.get("open_interest", 0) or 0)
                 pc = str(row.get("put_call", "") or "").upper()
+                is_call = pc in ("CALL", "C")
+
+                api_delta = float(row.get("delta", 0) or 0)
+
+                if api_delta != 0:
+                    delta = api_delta
+                else:
+                    iv = float(row.get("implied_vol", 0) or 0)
+                    if iv <= 0:
+                        mid = 0.0
+                        ask_p = float(row.get("ask_price", 0) or 0)
+                        bid_p = float(row.get("bid_price", 0) or 0)
+                        latest_p = float(row.get("latest_price", 0) or 0)
+                        if ask_p > 0 and bid_p > 0 and not math.isnan(bid_p):
+                            mid = (ask_p + bid_p) / 2.0
+                        elif latest_p > 0:
+                            mid = latest_p
+                        elif ask_p > 0:
+                            mid = ask_p * 0.85
+                        if mid > 0:
+                            iv = _implied_vol_from_price(sp, strike, T_years, _DEFAULT_RISK_FREE_RATE, mid, is_call)
+                    if iv <= 0:
+                        iv = 0.40
+                    delta = _bs_delta(sp, strike, T_years, _DEFAULT_RISK_FREE_RATE, iv, is_call)
+
                 gex = abs(delta) * oi * 100 * sp
                 if strike not in strikes_map:
                     strikes_map[strike] = {"call_gex": 0.0, "put_gex": 0.0}
-                if pc in ("CALL", "C"):
+                if is_call:
                     strikes_map[strike]["call_gex"] += gex
                 elif pc in ("PUT", "P"):
                     strikes_map[strike]["put_gex"] += gex
@@ -316,6 +398,210 @@ async def oi_distribution(
         total_put_oi=total_put_oi,
         strikes=oi_list,
         top_oi_strikes=top_oi,
+    )
+
+
+# ── Surface endpoints (per-expiry breakdown) ──────────────────────────────────
+
+class GEXSurfacePoint(BaseModel):
+    strike: float
+    expiry: str
+    call_gex: float
+    put_gex: float
+    net_gex: float
+
+
+class GEXSurface(BaseModel):
+    symbol: str
+    stock_price: float | None
+    expiries: list[str]
+    strikes: list[float]
+    data: list[GEXSurfacePoint]
+
+
+class OISurfacePoint(BaseModel):
+    strike: float
+    expiry: str
+    call_oi: int
+    put_oi: int
+
+
+class OISurface(BaseModel):
+    symbol: str
+    expiries: list[str]
+    strikes: list[float]
+    data: list[OISurfacePoint]
+    put_call_ratio: float | None
+
+
+@router.get("/{symbol}/gex-surface", response_model=GEXSurface)
+async def gex_surface(
+    symbol: str,
+    expiry_count: int = Query(4, ge=1, le=6),
+    db: AsyncSession = Depends(get_db),
+) -> GEXSurface:
+    """GEX per (strike, expiry) — same calculation as /gex but expiry dimension preserved."""
+    upper_symbol = symbol.upper()
+
+    stock_price: float | None = None
+    try:
+        _client = get_tiger_client()
+        _bars = await __import__("asyncio").to_thread(_client.get_kline, upper_symbol, "day", 1)
+        if _bars:
+            stock_price = float(_bars[-1]["close"])
+    except Exception:
+        pass
+    if not stock_price:
+        _price_stmt = (
+            select(OptionFlow.stock_price)
+            .where(OptionFlow.symbol == upper_symbol, OptionFlow.stock_price.isnot(None))
+            .order_by(OptionFlow.timestamp.desc())
+            .limit(1)
+        )
+        _row = (await db.execute(_price_stmt)).scalar()
+        stock_price = float(_row) if _row else None
+
+    # key: (strike, expiry)
+    surface_map: dict[tuple[float, str], dict] = {}
+
+    try:
+        client = get_tiger_client()
+        expiries_list = await __import__("asyncio").to_thread(
+            client.get_option_expirations, upper_symbol
+        )
+        sp = stock_price or 1.0
+        now = datetime.now(timezone.utc)
+        for expiry in expiries_list[:expiry_count]:
+            chain = await __import__("asyncio").to_thread(
+                client.get_option_chain, upper_symbol, expiry
+            )
+            try:
+                exp_dt = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                T_years = max((exp_dt - now).total_seconds() / (365.25 * 86400), 1 / (365.25 * 24))
+            except Exception:
+                T_years = 1 / 365.25
+            for row in chain:
+                strike = float(row.get("strike", 0) or 0)
+                if strike == 0:
+                    continue
+                oi = int(row.get("open_interest", 0) or 0)
+                pc = str(row.get("put_call", "") or "").upper()
+                is_call = pc in ("CALL", "C")
+                api_delta = float(row.get("delta", 0) or 0)
+                if api_delta != 0:
+                    delta = api_delta
+                else:
+                    iv = float(row.get("implied_vol", 0) or 0)
+                    if iv <= 0:
+                        mid = 0.0
+                        ask_p = float(row.get("ask_price", 0) or 0)
+                        bid_p = float(row.get("bid_price", 0) or 0)
+                        latest_p = float(row.get("latest_price", 0) or 0)
+                        if ask_p > 0 and bid_p > 0 and not math.isnan(bid_p):
+                            mid = (ask_p + bid_p) / 2.0
+                        elif latest_p > 0:
+                            mid = latest_p
+                        elif ask_p > 0:
+                            mid = ask_p * 0.85
+                        if mid > 0:
+                            iv = _implied_vol_from_price(sp, strike, T_years, _DEFAULT_RISK_FREE_RATE, mid, is_call)
+                    if iv <= 0:
+                        iv = 0.40
+                    delta = _bs_delta(sp, strike, T_years, _DEFAULT_RISK_FREE_RATE, iv, is_call)
+                gex = abs(delta) * oi * 100 * sp
+                key = (strike, expiry)
+                if key not in surface_map:
+                    surface_map[key] = {"call_gex": 0.0, "put_gex": 0.0}
+                if is_call:
+                    surface_map[key]["call_gex"] += gex
+                elif pc in ("PUT", "P"):
+                    surface_map[key]["put_gex"] += gex
+    except Exception:
+        logger.exception("Failed to fetch option chain for GEX surface %s", upper_symbol)
+
+    data = []
+    all_strikes: set[float] = set()
+    all_expiries: set[str] = set()
+    for (strike, expiry), v in sorted(surface_map.items()):
+        net = v["call_gex"] - v["put_gex"]
+        data.append(GEXSurfacePoint(
+            strike=strike,
+            expiry=expiry,
+            call_gex=round(v["call_gex"], 0),
+            put_gex=round(v["put_gex"], 0),
+            net_gex=round(net, 0),
+        ))
+        all_strikes.add(strike)
+        all_expiries.add(expiry)
+
+    return GEXSurface(
+        symbol=upper_symbol,
+        stock_price=stock_price,
+        expiries=sorted(all_expiries),
+        strikes=sorted(all_strikes),
+        data=data,
+    )
+
+
+@router.get("/{symbol}/oi-surface", response_model=OISurface)
+async def oi_surface(
+    symbol: str,
+    expiry_count: int = Query(4, ge=1, le=6),
+) -> OISurface:
+    """OI per (strike, expiry) — same calculation as /oi-distribution but expiry dimension preserved."""
+    upper_symbol = symbol.upper()
+    surface_map: dict[tuple[float, str], dict] = {}
+
+    try:
+        client = get_tiger_client()
+        expiries_list = await __import__("asyncio").to_thread(
+            client.get_option_expirations, upper_symbol
+        )
+        for expiry in expiries_list[:expiry_count]:
+            chain = await __import__("asyncio").to_thread(
+                client.get_option_chain, upper_symbol, expiry
+            )
+            for row in chain:
+                strike = float(row.get("strike", 0) or 0)
+                if strike == 0:
+                    continue
+                oi = int(row.get("open_interest", 0) or 0)
+                pc = str(row.get("put_call", "") or "").upper()
+                key = (strike, expiry)
+                if key not in surface_map:
+                    surface_map[key] = {"call_oi": 0, "put_oi": 0}
+                if pc in ("CALL", "C"):
+                    surface_map[key]["call_oi"] += oi
+                elif pc in ("PUT", "P"):
+                    surface_map[key]["put_oi"] += oi
+    except Exception:
+        logger.exception("Failed to fetch option chain for OI surface %s", upper_symbol)
+
+    data = []
+    all_strikes: set[float] = set()
+    all_expiries: set[str] = set()
+    total_call_oi = 0
+    total_put_oi = 0
+    for (strike, expiry), v in sorted(surface_map.items()):
+        data.append(OISurfacePoint(
+            strike=strike,
+            expiry=expiry,
+            call_oi=v["call_oi"],
+            put_oi=v["put_oi"],
+        ))
+        all_strikes.add(strike)
+        all_expiries.add(expiry)
+        total_call_oi += v["call_oi"]
+        total_put_oi += v["put_oi"]
+
+    pc_ratio = round(total_put_oi / total_call_oi, 4) if total_call_oi > 0 else None
+
+    return OISurface(
+        symbol=upper_symbol,
+        expiries=sorted(all_expiries),
+        strikes=sorted(all_strikes),
+        data=data,
+        put_call_ratio=pc_ratio,
     )
 
 
@@ -532,17 +818,44 @@ async def ai_insight(
         gex_map: dict[float, dict] = {}
         oi_map: dict[float, dict] = {}
 
+        now = datetime.now(timezone.utc)
         for expiry in expiries[:2]:
             chain = await __import__("asyncio").to_thread(
                 client.get_option_chain, upper_symbol, expiry
             )
+            try:
+                exp_dt = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                T_years = max((exp_dt - now).total_seconds() / (365.25 * 86400), 1 / (365.25 * 24))
+            except Exception:
+                T_years = 1 / 365.25
             for row in chain:
                 strike = float(row.get("strike", 0) or 0)
                 if not strike:
                     continue
-                delta = float(row.get("delta", 0) or 0)
                 oi = int(row.get("open_interest", 0) or 0)
                 pc = str(row.get("put_call", "") or "").upper()
+                is_call = pc in ("CALL", "C")
+                api_delta = float(row.get("delta", 0) or 0)
+                if api_delta != 0:
+                    delta = api_delta
+                else:
+                    iv = float(row.get("implied_vol", 0) or 0)
+                    if iv <= 0:
+                        mid = 0.0
+                        ask_p = float(row.get("ask_price", 0) or 0)
+                        bid_p = float(row.get("bid_price", 0) or 0)
+                        latest_p = float(row.get("latest_price", 0) or 0)
+                        if ask_p > 0 and bid_p > 0 and not math.isnan(bid_p):
+                            mid = (ask_p + bid_p) / 2.0
+                        elif latest_p > 0:
+                            mid = latest_p
+                        elif ask_p > 0:
+                            mid = ask_p * 0.85
+                        if mid > 0:
+                            iv = _implied_vol_from_price(sp, strike, T_years, _DEFAULT_RISK_FREE_RATE, mid, is_call)
+                    if iv <= 0:
+                        iv = 0.40
+                    delta = _bs_delta(sp, strike, T_years, _DEFAULT_RISK_FREE_RATE, iv, is_call)
                 gex_val = abs(delta) * oi * 100 * sp
 
                 if strike not in gex_map:
@@ -550,7 +863,7 @@ async def ai_insight(
                 if strike not in oi_map:
                     oi_map[strike] = {"call_oi": 0, "put_oi": 0}
 
-                if pc in ("CALL", "C"):
+                if is_call:
                     gex_map[strike]["call_gex"] += gex_val
                     oi_map[strike]["call_oi"] += oi
                 elif pc in ("PUT", "P"):

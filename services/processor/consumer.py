@@ -171,20 +171,47 @@ class FlowConsumer:
 
     @staticmethod
     def _parse_flow(fields: dict) -> dict:
+        _RENAME = {
+            "premium_cents": "premium",
+            "volume_delta": "volume",
+            "right": "put_call",
+            "bid": "bid_price",
+            "ask": "ask_price",
+            "contract": "raw_identifier",
+            "last_price": "last_price",
+        }
+
         flow: dict = {}
         for key, value in fields.items():
-            if key in ("premium", "volume", "oi", "dte", "timestamp_ms"):
+            dest = _RENAME.get(key, key)
+            if dest in ("premium", "volume", "oi", "dte", "timestamp_ms"):
                 try:
-                    flow[key] = int(value)
+                    flow[dest] = int(value)
                 except (ValueError, TypeError):
-                    flow[key] = value
-            elif key in ("strike", "bid_price", "ask_price", "stock_price", "iv"):
+                    flow[dest] = value
+            elif dest in ("strike", "bid_price", "ask_price", "stock_price", "iv", "last_price"):
                 try:
-                    flow[key] = float(value)
+                    flow[dest] = float(value)
                 except (ValueError, TypeError):
-                    flow[key] = value
-            elif key in ("is_sweep", "is_dark_pool"):
-                flow[key] = value in ("True", "true", "1")
+                    flow[dest] = value
+            elif dest in ("is_sweep", "is_dark_pool"):
+                flow[dest] = value in ("True", "true", "1")
             else:
-                flow[key] = value
+                flow[dest] = value
+
+        if "timestamp" in flow:
+            try:
+                ts = float(flow["timestamp"])
+                flow["timestamp"] = datetime.fromtimestamp(ts, tz=timezone.utc)
+            except (ValueError, TypeError):
+                flow["timestamp"] = datetime.now(timezone.utc)
+
+        if "expiry" in flow and "dte" not in flow:
+            try:
+                from datetime import date as _date
+                exp = _date.fromisoformat(str(flow["expiry"]))
+                flow["dte"] = (exp - _date.today()).days
+            except (ValueError, TypeError):
+                pass
+
         return flow

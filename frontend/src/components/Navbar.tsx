@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { isUSMarketOpen } from "@/lib/format";
+import { useWatchlistStore } from "@/store/watchlistStore";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -12,6 +13,16 @@ dayjs.extend(timezone);
 export function Navbar() {
   const [time, setTime] = useState("");
   const [marketOpen, setMarketOpen] = useState(false);
+  const syncFromServer = useWatchlistStore((s) => s.syncFromServer);
+  const synced = useWatchlistStore((s) => s.synced);
+  const syncRef = useRef(false);
+
+  useEffect(() => {
+    if (!syncRef.current && !synced) {
+      syncRef.current = true;
+      syncFromServer();
+    }
+  }, [syncFromServer, synced]);
 
   useEffect(() => {
     const tick = () => {

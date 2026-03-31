@@ -107,6 +107,24 @@ def _flow_to_row(flow: dict) -> dict:
             row[col_name] = flow[src_key]
     if "timestamp" not in row:
         row["timestamp"] = datetime.utcnow()
+    elif isinstance(row["timestamp"], str):
+        try:
+            ts = float(row["timestamp"])
+            row["timestamp"] = datetime.fromtimestamp(ts)
+        except (ValueError, TypeError):
+            row["timestamp"] = datetime.utcnow()
+
+    if "put_call" in row and row["put_call"] not in (None, "C", "P"):
+        pc = str(row["put_call"]).upper()
+        row["put_call"] = "C" if pc.startswith("C") else "P" if pc.startswith("P") else pc[:1]
+
+    if "expiry" in row and isinstance(row["expiry"], str):
+        try:
+            from datetime import date as _date
+            row["expiry"] = _date.fromisoformat(row["expiry"])
+        except (ValueError, TypeError):
+            pass
+
     return row
 
 

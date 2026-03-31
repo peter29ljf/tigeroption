@@ -173,6 +173,52 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["symbol"],
             },
         ),
+        types.Tool(
+            name="get_gex_surface",
+            description=(
+                "获取个股 GEX 按到期日分组的详细数据（行权价 × 到期日 × Gamma曝露）。"
+                "比 get_gex 多了到期日维度，可识别不同到期日的 GEX 分布差异和关键支撑/阻力位。"
+                "返回字段：strike（行权价）、expiry（到期日）、call_gex、put_gex、net_gex。"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "股票代码，如 NVDA、SPY",
+                    },
+                    "expiry_count": {
+                        "type": "integer",
+                        "description": "统计的到期日数量，默认4，范围1-6",
+                        "default": 4,
+                    },
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get_oi_surface",
+            description=(
+                "获取个股 OI 按到期日分组的详细数据（行权价 × 到期日 × 未平仓量）。"
+                "比 get_oi_distribution 多了到期日维度，可对比不同到期日的 OI 堆积和机构重仓区。"
+                "返回字段：strike（行权价）、expiry（到期日）、call_oi、put_oi，及整体 P/C 比率。"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "股票代码，如 NVDA、AAPL",
+                    },
+                    "expiry_count": {
+                        "type": "integer",
+                        "description": "统计的到期日数量，默认4，范围1-6",
+                        "default": 4,
+                    },
+                },
+                "required": ["symbol"],
+            },
+        ),
     ]
 
 
@@ -219,6 +265,22 @@ async def _dispatch(name: str, args: dict) -> object:
         expiry_count = int(args.get("expiry_count", 2))
         return await _get(
             f"/api/v1/analysis/{symbol}/oi-distribution",
+            {"expiry_count": expiry_count},
+        )
+
+    elif name == "get_gex_surface":
+        symbol = str(args["symbol"]).upper()
+        expiry_count = int(args.get("expiry_count", 4))
+        return await _get(
+            f"/api/v1/analysis/{symbol}/gex-surface",
+            {"expiry_count": expiry_count},
+        )
+
+    elif name == "get_oi_surface":
+        symbol = str(args["symbol"]).upper()
+        expiry_count = int(args.get("expiry_count", 4))
+        return await _get(
+            f"/api/v1/analysis/{symbol}/oi-surface",
             {"expiry_count": expiry_count},
         )
 

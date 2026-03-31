@@ -21,7 +21,7 @@ class FlowOut(BaseModel):
     side: str
     premium: int
     volume: int
-    oi: int
+    oi: Optional[int] = None
     bid_price: Optional[Decimal] = None
     ask_price: Optional[Decimal] = None
     is_sweep: bool = False

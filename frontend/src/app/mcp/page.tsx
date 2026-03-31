@@ -44,6 +44,22 @@ const TOOLS = [
       { name: "expiry_count", type: "int", default: "2", desc: "统计近N个到期日（1-5）" },
     ],
   },
+  {
+    name: "get_gex_surface",
+    desc: "获取个股 GEX 按到期日分组详细数据（行权价 × 到期日 × Gamma曝露）",
+    params: [
+      { name: "symbol", type: "string", required: true, desc: "股票代码" },
+      { name: "expiry_count", type: "int", default: "4", desc: "统计到期日数量（1-6）" },
+    ],
+  },
+  {
+    name: "get_oi_surface",
+    desc: "获取个股 OI 按到期日分组详细数据（行权价 × 到期日 × 未平仓量）",
+    params: [
+      { name: "symbol", type: "string", required: true, desc: "股票代码" },
+      { name: "expiry_count", type: "int", default: "4", desc: "统计到期日数量（1-6）" },
+    ],
+  },
 ];
 
 const DESKTOP_CONFIG_LOCAL = `{
@@ -165,7 +181,7 @@ export default function MCPPage() {
 
       {/* Tools list */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold text-[var(--text-primary)]">可用工具（7 个）</h2>
+        <h2 className="text-base font-semibold text-[var(--text-primary)]">可用工具（9 个）</h2>
         <div className="space-y-2">
           {TOOLS.map((tool) => (
             <div

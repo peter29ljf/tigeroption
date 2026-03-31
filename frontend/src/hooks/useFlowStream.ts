@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useFlowStore, type Flow, type FlowFilters } from "@/store/flowStore";
-import { wsUrl } from "@/lib/api";
+import { wsUrl, apiFetch } from "@/lib/api";
 
 const MAX_RECONNECT_DELAY = 30000;
 const BASE_DELAY = 1000;
@@ -11,7 +11,20 @@ export function useFlowStream(filters?: Partial<FlowFilters>) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attempt = useRef(0);
-  const { addFlow, setConnected, connected, flows } = useFlowStore();
+  const initialLoaded = useRef(false);
+  const { addFlow, setFlows, setConnected, connected, flows } = useFlowStore();
+
+  useEffect(() => {
+    if (initialLoaded.current) return;
+    initialLoaded.current = true;
+    apiFetch<Flow[]>("/api/v1/flows?limit=200")
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setFlows(data);
+        }
+      })
+      .catch(() => {});
+  }, [setFlows]);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config.settings import get_settings
 from services.api.models.database import get_db
 from services.api.models.option_flow import OptionFlow
+from services.api.routers.watchlist import get_dynamic_watchlist
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/market", tags=["market"])
@@ -32,12 +33,12 @@ class MarketSentiment(BaseModel):
 
 @router.get("/sentiment", response_model=MarketSentiment)
 async def market_sentiment(
+    request: Request,
     hours: int = Query(24, ge=1, le=168),
     db: AsyncSession = Depends(get_db),
 ) -> MarketSentiment:
-    settings = get_settings()
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
-    watchlist = settings.watchlist_symbols
+    watchlist = await get_dynamic_watchlist(request.app.state.redis)
 
     symbols: list[SymbolSentiment] = []
     total_bullish = 0

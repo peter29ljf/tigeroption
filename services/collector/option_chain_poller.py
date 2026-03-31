@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+import redis.asyncio as aioredis
+
 from config.settings import get_settings
 
 from .publisher import FlowPublisher
@@ -13,6 +15,8 @@ from .rate_limiter import TokenBucketRateLimiter
 from .tiger_client import TigerClient
 
 logger = logging.getLogger(__name__)
+
+WATCHLIST_REDIS_KEY = "watchlist:symbols"
 
 
 @dataclass
@@ -78,6 +82,9 @@ class OptionChainPoller:
         self._publisher = publisher
         self._on_large_order = on_large_order
         self._settings = get_settings()
+        self._redis: aioredis.Redis = aioredis.from_url(
+            self._settings.redis_url, decode_responses=True
+        )
         self._volume_snapshots: dict[str, int] = {}
         self._running = False
 
@@ -99,8 +106,24 @@ class OptionChainPoller:
         self._running = False
         logger.info("OptionChainPoller stopping")
 
+    async def _get_watchlist(self) -> list[str]:
+        """Read watchlist from Redis; seed from .env defaults if empty."""
+        try:
+            members = await self._redis.smembers(WATCHLIST_REDIS_KEY)
+            if members:
+                return sorted(members)
+        except Exception:
+            logger.warning("Redis watchlist read failed, using .env fallback")
+        defaults = self._settings.watchlist_symbols
+        try:
+            if defaults:
+                await self._redis.sadd(WATCHLIST_REDIS_KEY, *defaults)
+        except Exception:
+            pass
+        return defaults
+
     async def _poll_cycle(self) -> None:
-        symbols = self._settings.watchlist_symbols
+        symbols = await self._get_watchlist()
         threshold = self._settings.premium_threshold_cents
 
         for symbol in symbols:
@@ -118,7 +141,12 @@ class OptionChainPoller:
 
         await self._limiter.acquire()
         stock_info = await asyncio.to_thread(self._client.get_stock_price, symbol)
-        stock_price = float(stock_info.get("latestPrice", 0) if isinstance(stock_info, dict) else getattr(stock_info, "latest_price", 0))
+        if isinstance(stock_info, (int, float)):
+            stock_price = float(stock_info)
+        elif isinstance(stock_info, dict):
+            stock_price = float(stock_info.get("latestPrice", 0) or 0)
+        else:
+            stock_price = float(getattr(stock_info, "latest_price", 0) or 0)
 
         for expiry in nearest_expiries:
             await self._limiter.acquire()
